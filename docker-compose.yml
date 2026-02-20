@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  bot:
+    build: .
+    container_name: smile-party-bot
+    restart: unless-stopped
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./qr_cache:/app/qr_cache
+      - ./backups:/app/backups
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+      - QR_SECRET_KEY=${QR_SECRET_KEY}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - TZ=Europe/Moscow
+    env_file:
+      - .env
+    depends_on:
+      - redis
+    networks:
+      - bot-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.socket().connect(('localhost', 8000))" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  redis:
+    image: redis:7-alpine
+    container_name: smile-party-redis
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    networks:
+      - bot-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  redis-data:
+    name: smile-party-redis-data
+
+networks:
+  bot-network:
+    name: smile-party-network
+    driver: bridge
